@@ -1,27 +1,31 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const CORS_HEADERS = {
+const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+function cors(res: VercelResponse): VercelResponse {
+  Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v))
+  return res
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Handle preflight
   if (req.method === 'OPTIONS') {
-    res.set(CORS_HEADERS).status(204).end()
+    cors(res).status(204).end()
     return
   }
 
   if (req.method !== 'POST') {
-    res.set(CORS_HEADERS).status(405).json({ error: 'Method not allowed' })
+    cors(res).status(405).json({ error: 'Method not allowed' })
     return
   }
 
   const { refresh_token } = req.body as { refresh_token?: string }
 
   if (!refresh_token) {
-    res.set(CORS_HEADERS).status(400).json({ error: 'Missing refresh_token' })
+    cors(res).status(400).json({ error: 'Missing refresh_token' })
     return
   }
 
@@ -29,10 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
 
   if (!clientId || !clientSecret) {
-    res
-      .set(CORS_HEADERS)
-      .status(500)
-      .json({ error: 'Server misconfiguration: missing env vars' })
+    cors(res).status(500).json({ error: 'Server misconfiguration: missing env vars' })
     return
   }
 
@@ -63,21 +64,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!tokenRes.ok) {
-      res.set(CORS_HEADERS).status(tokenRes.status).json({
+      cors(res).status(tokenRes.status).json({
         error: data.error ?? 'refresh_failed',
         description: data.error_description,
       })
       return
     }
 
-    res.set(CORS_HEADERS).status(200).json({
+    cors(res).status(200).json({
       access_token: data.access_token,
       expires_in: data.expires_in,
-      // Spotify may return a new refresh_token
       ...(data.refresh_token ? { refresh_token: data.refresh_token } : {}),
     })
   } catch (err) {
     console.error('[api/refresh] Unexpected error:', err)
-    res.set(CORS_HEADERS).status(500).json({ error: 'Internal server error' })
+    cors(res).status(500).json({ error: 'Internal server error' })
   }
 }

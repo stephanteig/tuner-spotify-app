@@ -1,20 +1,24 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const CORS_HEADERS = {
+const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+function cors(res: VercelResponse): VercelResponse {
+  Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v))
+  return res
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Handle preflight
   if (req.method === 'OPTIONS') {
-    res.set(CORS_HEADERS).status(204).end()
+    cors(res).status(204).end()
     return
   }
 
   if (req.method !== 'POST') {
-    res.set(CORS_HEADERS).status(405).json({ error: 'Method not allowed' })
+    cors(res).status(405).json({ error: 'Method not allowed' })
     return
   }
 
@@ -24,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!code || !code_verifier) {
-    res.set(CORS_HEADERS).status(400).json({ error: 'Missing code or code_verifier' })
+    cors(res).status(400).json({ error: 'Missing code or code_verifier' })
     return
   }
 
@@ -33,10 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const redirectUri = process.env.VITE_REDIRECT_URI
 
   if (!clientId || !clientSecret || !redirectUri) {
-    res
-      .set(CORS_HEADERS)
-      .status(500)
-      .json({ error: 'Server misconfiguration: missing env vars' })
+    cors(res).status(500).json({ error: 'Server misconfiguration: missing env vars' })
     return
   }
 
@@ -69,20 +70,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!tokenRes.ok) {
-      res.set(CORS_HEADERS).status(tokenRes.status).json({
+      cors(res).status(tokenRes.status).json({
         error: data.error ?? 'token_exchange_failed',
         description: data.error_description,
       })
       return
     }
 
-    res.set(CORS_HEADERS).status(200).json({
+    cors(res).status(200).json({
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       expires_in: data.expires_in,
     })
   } catch (err) {
     console.error('[api/callback] Unexpected error:', err)
-    res.set(CORS_HEADERS).status(500).json({ error: 'Internal server error' })
+    cors(res).status(500).json({ error: 'Internal server error' })
   }
 }
